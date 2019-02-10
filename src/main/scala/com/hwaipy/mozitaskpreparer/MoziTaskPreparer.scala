@@ -58,6 +58,7 @@ object MoziTaskPreparer extends JFXApp {
       onAction = (ae: ActionEvent) => actionToday
     }
     actionToday
+    dateTextField.text = "2017-02-16"
     val childrenSeq = Seq(labelDate, dateTextField, buttonToday)
     childrenSeq.foreach(_.prefHeight <== height)
     children = childrenSeq
@@ -97,27 +98,12 @@ object MoziTaskPreparer extends JFXApp {
     taskPrepare
   }
 
-  val task1 = new SimulationTask(2000)
-  val tasks = new SerialTask(List(task1))
-  tasks.progressListener((finished, workload) => Platform.runLater(() => workProgress.value = finished.toDouble / workload))
-
   def taskPrepare = {
     val root = s"${properties.getProperty("DataRoot", "data")}/${dateTextField.text.getValue.replaceAll("-", "")}"
-
-    //    tasks.run
-    //    val dateS = LocalDateTime.now.minusHours(8).format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-    //    val basePath = new File(s"../../实验计划/$dateS")
-    //    val fileDQJH = new File(basePath, "短期计划").listFiles(new FileFilter {
-    //      override def accept(f: File): Boolean = f.isDirectory && f.getName.endsWith("LJ")
-    //    }).head.listFiles(new FileFilter {
-    //      override def accept(f: File): Boolean = f.getName.toLowerCase.endsWith(".dat")
-    //    }).head
-    //    val planPath = new File(basePath, "plan")
-    //    if (planPath.exists) {
-    //      println("Plan already generated.")
-    //    }
-    //    planPath.mkdirs
-    //    traceDQJH(planPath, fileDQJH)
+    val trackingTraceTask = TelescopePreparationTasks.generateTrackingTraceTask(new File(root))
+    val tasks = new SerialTask(List(trackingTraceTask))
+    tasks.progressListener((finished, workload) => Platform.runLater(() => workProgress.value = finished.toDouble / workload))
+    tasks.run
   }
 
   def handleException(e: Throwable) = {
