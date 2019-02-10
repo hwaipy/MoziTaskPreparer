@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+<comment>MoziTaskPreparer</comment>
+<entry key="DataRoot">data</entry>
+<entry key="LogPath">log</entry>
+</properties>

@@ -1,22 +1,45 @@
 package com.hwaipy.mozitaskpreparer
 
-import scalafx.application.JFXApp
+import java.awt.Desktop
+import java.io.{File, FileInputStream, PrintWriter}
+
+import scalafx.application.{JFXApp, Platform}
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.scene.Scene
 import scalafx.scene.control._
 import scalafx.scene.layout.{HBox, VBox}
 import scalafx.util.converter.FormatStringConverter
 import java.text.SimpleDateFormat
-import java.util.Date
+import java.util.{Date, Properties}
+import java.util.concurrent.Executors
+
 import javafx.event.ActionEvent
+import scalafx.beans.property.DoubleProperty
 import scalafx.geometry.Insets
 
-import collection.JavaConverters._
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+import java.nio.file.{Files, Paths}
 
 object MoziTaskPreparer extends JFXApp {
-  //  val storageFile = new File("../../Google Drive/ToDo.xml")
-  //  //  val storageFile = new File("ToDo.xml")
-  //  val actionSet = ActionSet.loadFromFile(storageFile)
+  implicit val executionContext = ExecutionContext.fromExecutorService(Executors.newSingleThreadExecutor((r: Runnable) => {
+    val thread = new Thread(r)
+    thread.setDaemon(true)
+    thread
+  }))
+  val properties = new Properties()
+  val configIn = new FileInputStream("config.xml")
+  properties.loadFromXML(configIn)
+  configIn.close()
+
+  val workProgress = new DoubleProperty()
+  workProgress.value = 0.0
+  val format = new SimpleDateFormat("yyyy-MM-dd")
+  val converter = new FormatStringConverter[Number](format)
+  val dateTextField = new TextField {
+    textFormatter = new TextFormatter(converter)
+  }
+
   stage = new PrimaryStage {
     title = "Mozi Task Preparer"
     scene = new Scene() {
@@ -28,20 +51,14 @@ object MoziTaskPreparer extends JFXApp {
 
   lazy val datePane = new HBox(spacing = 5) {
     val labelDate = new Label("Date (UTC): ")
-    val format = new SimpleDateFormat("yyyy-MM-dd")
-    val converter = new FormatStringConverter[Number](format)
-    val textField = new TextField {
-      textFormatter = new TextFormatter(converter)
-    }
 
-    def actionToday = textField.text = format.format(new Date(System.currentTimeMillis - 8 * 3600000))
+    def actionToday = dateTextField.text = format.format(new Date(System.currentTimeMillis - 8 * 3600000))
 
     val buttonToday = new Button("Today") {
       onAction = (ae: ActionEvent) => actionToday
     }
-
     actionToday
-    val childrenSeq = Seq(labelDate, textField, buttonToday)
+    val childrenSeq = Seq(labelDate, dateTextField, buttonToday)
     childrenSeq.foreach(_.prefHeight <== height)
     children = childrenSeq
     padding = Insets(3, 20, 3, 20)
@@ -49,9 +66,22 @@ object MoziTaskPreparer extends JFXApp {
 
   lazy val processPane = new VBox() {
     val progressBar = new ProgressBar()
+    progressBar.progress <== workProgress
     val buttonProcessPane = new VBox() {
       val buttonProcess = new Button("Process") {
-        onAction = (ae: ActionEvent) => println("Process")
+        onAction = (ae: ActionEvent) => {
+          disable = true
+          val future = onButtonProcess
+          future onComplete {
+            case Success(s) => {
+              disable = false
+            }
+            case Failure(f) => {
+              handleException(f)
+              disable = false
+            }
+          }
+        }
       }
       buttonProcess.prefWidth <== width
       children = Seq(buttonProcess)
@@ -63,7 +93,18 @@ object MoziTaskPreparer extends JFXApp {
     padding = Insets(3, 20, 3, 20)
   }
 
-  def p() = {
+  def onButtonProcess = Future {
+    taskPrepare
+  }
+
+  val task1 = new SimulationTask(2000)
+  val tasks = new SerialTask(List(task1))
+  tasks.progressListener((finished, workload) => Platform.runLater(() => workProgress.value = finished.toDouble / workload))
+
+  def taskPrepare = {
+    val root = s"${properties.getProperty("DataRoot", "data")}/${dateTextField.text.getValue.replaceAll("-", "")}"
+
+    //    tasks.run
     //    val dateS = LocalDateTime.now.minusHours(8).format(DateTimeFormatter.ofPattern("yyyyMMdd"))
     //    val basePath = new File(s"../../实验计划/$dateS")
     //    val fileDQJH = new File(basePath, "短期计划").listFiles(new FileFilter {
@@ -77,5 +118,18 @@ object MoziTaskPreparer extends JFXApp {
     //    }
     //    planPath.mkdirs
     //    traceDQJH(planPath, fileDQJH)
+  }
+
+  def handleException(e: Throwable) = {
+    val logPath = properties.getProperty("LogPath", "log")
+    Files.createDirectories(Paths.get(logPath))
+    val logName = s"Error[${new SimpleDateFormat("yyyy-MM-dd HH-mm-SS.sss").format(new Date())}].log"
+    val path = s"${logPath}/${logName}"
+    val pw = new PrintWriter(path)
+    pw.println(e.getMessage)
+    pw.println("--------------------------------------------------------------------------------")
+    e.printStackTrace(pw)
+    pw.close()
+    Desktop.getDesktop.open(new File(path))
   }
 }
