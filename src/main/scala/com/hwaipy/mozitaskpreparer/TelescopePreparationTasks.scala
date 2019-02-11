@@ -5,10 +5,12 @@ import java.nio.file.{Files, StandardCopyOption}
 import java.util.concurrent.atomic.AtomicInteger
 import collection.JavaConverters._
 import scala.io.Source
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 
 object TelescopePreparationTasks {
+  //run1
   def generateTrackingTraceTask(basePath: File) = new Task {
-    private val times = List(100, 2000, 5000, 20000)
+    private val times = List(100, 2000, 5000)
     progressUpdate(0, times.sum)
 
     override def run: Unit = {
@@ -31,8 +33,8 @@ object TelescopePreparationTasks {
       progressUpdate(times.slice(0, 2).sum)
       remap2JHJ(resultDir)
       progressUpdate(times.slice(0, 3).sum)
-      calculateWPAs(resultDir)
-      progressUpdate(times.slice(0, 4).sum)
+      //      calculateWPAs(resultDir)
+      //      progressUpdate(times.slice(0, 4).sum)
     }
 
     def DQJH2ReMap(traceSrc: File, resultDir: File) {
@@ -112,9 +114,125 @@ object TelescopePreparationTasks {
     }
   }
 
+  //run2
+  def generateTPTESTTask(basePath: File) = new Task {
+    private val times = List(100, 2000, 5000, 20000)
+    progressUpdate(0, times.sum)
+
+    override def run: Unit = {
+      val DQJHPath = new File(basePath, "短期计划").listFiles(new FileFilter {
+        override def accept(f: File): Boolean = f.isDirectory && f.getName.endsWith("LJ")
+      }) match {
+        case ps if ps.size == 1 => ps.head
+        case _ => throw new RuntimeException("短期计划文件错误")
+      }
+      val resultPath = new File(basePath, "result")
+      val polComposePath = new File(basePath, "偏振补偿")
+      resultPath.mkdirs
+      polComposePath.mkdirs
+      val tracePlan = GeneralRecord.fromCSVFile(new File(new File(basePath, "plan"), "DQJH/ReMap/ReMap.dat"), "GB2312").asTracePlan
+      //      val workbook = new HSSFWorkbook()
+      //      val sheet = workbook.createSheet("Polarization Compose")
+      //      val headRow = List("方位", "俯仰", "卫星姿态", "JF-A", "JF-E", "姿态补偿", "时间", "时刻", "补偿相位", "额外HWP")
+      //      Range(0, tracePlan.items.size + 1).foreach(r => {
+      //        val row = sheet.createRow(r)
+      //        Range(0, headRow.size).foreach(c => row.createCell(c))
+      //      })
+      //      headRow.zipWithIndex.foreach(zip => sheet.getRow(0).getCell(zip._2).setCellValue(zip._1))
+      //
+      //      val attitudeSatelliteFile = DQJHPath.listFiles(new FileFilter {
+      //        override def accept(f: File): Boolean = f.getName.contains("LJZ基矢810T") && f.getName.toLowerCase.endsWith(".csv")
+      //      }).head
+      //      val attitudeSatellite = GeneralRecord.fromCSVFile(attitudeSatelliteFile, "GB2312").asAttitudeSatelliteList
+      //      val AESatelliteFiles = DQJHPath.listFiles(new FileFilter {
+      //        override def accept(f: File): Boolean = f.getName.contains("双站模式") && f.getName.contains("量子纠缠发射机") && f.getName.contains("引导曲线") && f.getName.toLowerCase.endsWith(".xlsx")
+      //      })
+      //      val AESatellite = AESatelliteFiles.size match {
+      //        case 0 => {
+      //          println("No AE Satellite defination.")
+      //          new ExperimentRecord(LocalDateTime.now, (0 to tracePlan.items.size).toList.map(i => new RecordItem(LocalDateTime.now, LocalDateTime.now, Some(new TelescopeStatus(0.asDegree, 0.asDegree)))))
+      //        }
+      //        case _ => {
+      //          println("AE Satellite composed.")
+      //          GeneralRecord.fromXLSFile(AESatelliteFiles.head).asAESatellite
+      //        }
+      //      }
+      //
+      //      val planConfigFile = DQJHPath.listFiles(new FileFilter {
+      //        override def accept(f: File): Boolean = f.getName.toLowerCase.endsWith(".xml")
+      //      }).head
+      //      val planConfig = XML.loadFile(planConfigFile)
+      //      val configLJZs = (planConfig \\ "地面站").filter(_.attribute("代号").exists(_.text == "LJZ"))
+      //      configLJZs.size match {
+      //        case 0 => {
+      //          println("No LJZ config found.")
+      //          throw new RuntimeException
+      //        }
+      //        case 1 => {
+      //          val configLJZ = configLJZs.head
+      //          val startTimeS = (configLJZ \\ "跟踪开始时间").text.replace("B", " ")
+      //          val startTime = LocalDateTime.parse(startTimeS, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+      //          val endTimeS = (configLJZ \\ "跟踪结束时间").text.replace("B", " ")
+      //          val endTime = LocalDateTime.parse(endTimeS, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+      //          if ((startTime != tracePlan.items.head.time) || (endTime.minusSeconds(1) != tracePlan.items.last.time)) {
+      //            println("Time in DQJH not match the config.")
+      //            throw new RuntimeException
+      //          }
+      //        }
+      //        case 2 => {
+      //          println("Multi LJZ configs found.")
+      //          throw new RuntimeException
+      //        }
+      //      }
+      //
+      //      (0 until tracePlan.items.size).foreach(i => {
+      //        val row = sheet.getRow(i + 1)
+      //        row.getCell(0).setCellValue(tracePlan.items(i).telescopeStatus.get.azimuth.degree)
+      //        row.getCell(1).setCellValue(tracePlan.items(i).telescopeStatus.get.elevation.degree)
+      //        row.getCell(2).setCellValue(attitudeSatellite(i + 1))
+      //        row.getCell(3).setCellValue(AESatellite.items(i + 1).telescopeStatus.get.azimuth.degree)
+      //        row.getCell(4).setCellValue(AESatellite.items(i + 1).telescopeStatus.get.elevation.degree)
+      //        row.getCell(5).setCellType(CellType.FORMULA)
+      //        row.getCell(5).setCellFormula(s"C${i + 2}-(E${i + 2}-D${i + 2})")
+      //        row.getCell(6).setCellValue(i + 1)
+      //        row.getCell(7).setCellValue(tracePlan.items(i).time.format(DateTimeFormatter.ofPattern("HH:mm:ss")))
+      //        row.getCell(8).setCellValue(0)
+      //        row.getCell(9).setCellValue(0)
+      //      })
+      //      val fileOutputStream = new FileOutputStream(new File(polComposePath, "偏振补偿.xls"))
+      //      workbook.write(fileOutputStream)
+      //      fileOutputStream.close
+
+
+    }
+  }
+
   private def clean(file: File) {
     if (file.isDirectory) file.listFiles.foreach(clean)
     if (file.exists) file.delete
   }
+}
 
+
+object GeneralRecord {
+  def fromCSVFile(file: File, encoding: String = "UTF-8") =
+    new GeneralRecord(Source.fromFile(file, encoding).getLines.toList.map(line => {
+      line.split("[ \t,]+").filter(s => s.length > 0).toList
+    }))
+
+  def fromXLSFile(file: File) = {
+    val sheet = new XSSFWorkbook(file).getSheetAt(0)
+    new GeneralRecord((sheet.getFirstRowNum to sheet.getLastRowNum).map(rownum => {
+      val row = sheet.getRow(rownum)
+      (row.getFirstCellNum to row.getLastCellNum).map(cellnum => {
+        row.getCell(cellnum) match {
+          case cell if cell == null => "null"
+          case cell => cell.getRawValue
+        }
+      }).toList
+    }).toList)
+  }
+}
+
+class GeneralRecord private(val content: List[List[String]]) {
 }

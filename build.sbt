@@ -5,6 +5,8 @@ organization := "com.hwaipy"
 
 // Add dependency on ScalaFX library
 libraryDependencies += "org.scalafx" %% "scalafx" % "11-R16"
+libraryDependencies += "org.apache.poi" % "poi" % "3.15"
+libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.15"
 
 // Determine OS version of JavaFX binaries
 lazy val osName = System.getProperty("os.name") match {
