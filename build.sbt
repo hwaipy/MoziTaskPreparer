@@ -7,6 +7,8 @@ organization := "com.hwaipy"
 libraryDependencies += "org.scalafx" %% "scalafx" % "11-R16"
 libraryDependencies += "org.apache.poi" % "poi" % "3.15"
 libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.15"
+libraryDependencies += "com.xeiam.xchart" % "xchart" % "2.5.1" exclude("de.erichseifert.vectorgraphics2d", "VectorGraphics2D")
+libraryDependencies += "com.hwaipy" %% "hydrogen" % "0.3.1"
 
 // Determine OS version of JavaFX binaries
 lazy val osName = System.getProperty("os.name") match {

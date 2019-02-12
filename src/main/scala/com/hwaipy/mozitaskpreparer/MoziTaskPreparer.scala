@@ -101,8 +101,9 @@ object MoziTaskPreparer extends JFXApp {
   def taskPrepare = {
     val root = s"${properties.getProperty("DataRoot", "data")}/${dateTextField.text.getValue.replaceAll("-", "")}"
     val trackingTraceTask = TelescopePreparationTasks.generateTrackingTraceTask(new File(root))
-    val TPTESTTask = TelescopePreparationTasks.generateTPTESTTask(new File(root))
-    val tasks = new SerialTask(List(trackingTraceTask, TPTESTTask))
+    val polarizationControlTask = TelescopePreparationTasks.generatePolarizationControlTask(new File(root))
+    val waveplateCalculateTask = TelescopePreparationTasks.generateWaveplateCalculateTask(new File(root))
+    val tasks = new SerialTask(List(trackingTraceTask, polarizationControlTask, waveplateCalculateTask))
     tasks.progressListener((finished, workload) => Platform.runLater(() => workProgress.value = finished.toDouble / workload))
     tasks.run
   }
