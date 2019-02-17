@@ -5,23 +5,27 @@ import java.io._
 import java.nio.file.{Files, StandardCopyOption}
 import java.time.format.DateTimeFormatter
 import java.time.{Duration, LocalDate, LocalDateTime, LocalTime}
-import java.util.concurrent.atomic.AtomicInteger
 import javax.imageio.ImageIO
-
 import com.xeiam.xchart.{ChartBuilder, SeriesMarker, StyleManager}
 import org.apache.poi.hssf.usermodel.HSSFWorkbook
 import org.apache.poi.ss.usermodel.CellType
 import com.hwaipy.hydrogen.physics.polarization.muellermatrix._
-
 import collection.JavaConverters._
 import scala.io.Source
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
-
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object TelescopePreparationTasks {
+  def generatePreparationTask(basePath: File, parameters: Map[String, String] = Map()) = {
+    val modeLZX = parameters("Mode").toBoolean
+    val trackingTraceTask = TelescopePreparationTasks.generateTrackingTraceTask(basePath)
+    val polarizationControlTask = TelescopePreparationTasks.generatePolarizationControlTask(basePath, parameters)
+    val waveplateCalculateTask = TelescopePreparationTasks.generateWaveplateCalculateTask(basePath, parameters)
+    new SerialTask(List(trackingTraceTask, polarizationControlTask, waveplateCalculateTask))
+  }
+
   //run1
-  def generateTrackingTraceTask(basePath: File) = new Task {
+  private def generateTrackingTraceTask(basePath: File) = new Task {
     private val times = List(100, 2000, 5000)
     progressUpdate(0, times.sum)
 
@@ -88,7 +92,6 @@ object TelescopePreparationTasks {
           .foreach(path => Files.copy(path, new File(mfcPath, path.getFileName.toString).toPath, StandardCopyOption.REPLACE_EXISTING))
       } else {
         val process = Runtime.getRuntime.exec(s"${new File(mfcPath, "ReMapToJHJMFC.exe").getAbsolutePath}", Array[String](), mfcPath)
-        println(s"${new File(mfcPath, "ReMapToJHJMFC").getAbsolutePath}")
         process.waitFor
       }
       val jhjPath = new File(resultDir, "JHJ")
@@ -102,12 +105,13 @@ object TelescopePreparationTasks {
   }
 
   //run2
-  def generatePolarizationControlTask(basePath: File) = new Task {
+  private def generatePolarizationControlTask(basePath: File, parameters: Map[String, String] = Map()) = new Task {
 
     import ExperimentRecord._
     import Angle._
 
     progressUpdate(0, 1000)
+    val satellitePhase = parameters.getOrElse("Phase Satellite", "60").toDouble
 
     override def run: Unit = {
       val DQJHPath = new File(basePath, "短期计划").listFiles(new FileFilter {
@@ -138,14 +142,8 @@ object TelescopePreparationTasks {
         override def accept(f: File): Boolean = f.getName.contains("双站模式") && f.getName.contains("量子纠缠发射机") && f.getName.contains("引导曲线") && f.getName.toLowerCase.endsWith(".xlsx")
       })
       val AESatellite = AESatelliteFiles.size match {
-        case 0 => {
-          println("No AE Satellite defination.")
-          new ExperimentRecord(LocalDateTime.now, (0 to tracePlan.items.size).toList.map(i => new RecordItem(LocalDateTime.now, LocalDateTime.now, Some(new TelescopeStatus(0.asDegree, 0.asDegree)))))
-        }
-        case _ => {
-          println("AE Satellite composed.")
-          GeneralRecord.fromXLSFile(AESatelliteFiles.head).asAESatellite
-        }
+        case 0 => new ExperimentRecord(LocalDateTime.now, (0 to tracePlan.items.size).toList.map(i => new RecordItem(LocalDateTime.now, LocalDateTime.now, Some(new TelescopeStatus(0.asDegree, 0.asDegree)))))
+        case _ => GeneralRecord.fromXLSFile(AESatelliteFiles.head).asAESatellite
       }
 
       (0 until tracePlan.items.size).foreach(i => {
@@ -159,7 +157,7 @@ object TelescopePreparationTasks {
         row.getCell(5).setCellFormula(s"C${i + 2}-(E${i + 2}-D${i + 2})")
         row.getCell(6).setCellValue(i + 1)
         row.getCell(7).setCellValue(tracePlan.items(i).time.format(DateTimeFormatter.ofPattern("HH:mm:ss")))
-        row.getCell(8).setCellValue(0)
+        row.getCell(8).setCellValue(satellitePhase)
         row.getCell(9).setCellValue(0)
       })
       val fileOutputStream = new FileOutputStream(new File(polComposePath, "偏振补偿.xls"))
@@ -171,19 +169,24 @@ object TelescopePreparationTasks {
   }
 
   //run3
-  def generateWaveplateCalculateTask(basePath: File) = new Task {
+  private def generateWaveplateCalculateTask(basePath: File, parameters: Map[String, String] = Map()) = new Task {
     progressUpdate(0, 42000)
+
+    val telescopeOriginAzimuth = parameters.getOrElse("TelescopeOriginAzimuth", "32.75001").toDouble
+    val phase1 = parameters.getOrElse("Phase 1", "0.38001").toDouble
+    val phase2 = parameters.getOrElse("Phase 2", "-1.33001").toDouble
+    val phase3 = parameters.getOrElse("Phase 3", "0.40001").toDouble
 
     override def run: Unit = {
       val file = new File(basePath, "偏振补偿/偏振补偿.xls")
       val angles = loadAngles(file)
       val results = new ArrayBuffer[Array[Double]]()
       angles.foreach(angle => {
-        val rH = -(angle(0) - 32.75) / 180 * math.Pi
+        val rH = -(angle(0) - telescopeOriginAzimuth) / 180 * math.Pi
         val rV = -angle(1) / 180 * math.Pi
         val rotate = angle(2) / 180 * Math.PI
         val phase = angle(3) / 180 * Math.PI
-        val bbMatrix = TelescopeTransform.create(0.38, -1.33, 0.40, rV, rH, phase, rotate)
+        val bbMatrix = TelescopeTransform.create(phase1, phase2, phase3, rV, rH, phase, rotate)
         val comp = M1Process.calculate(bbMatrix).toArray
         results += comp
       })
@@ -198,10 +201,10 @@ object TelescopePreparationTasks {
         annealingResults += annealingResult._2
         progressUpdate(1000 + 40000 * i / results.size)
       })
-            (0 until contResults.size).foreach(i => {
-              val HWP = angles(i)(4) / 180.0 * Math.PI
-              contResults(i)(2) = contResults(i)(2) + HWP
-            })
+      (0 until contResults.size).foreach(i => {
+        val HWP = angles(i)(4) / 180.0 * Math.PI
+        contResults(i)(2) = contResults(i)(2) + HWP
+      })
       val outputFile = new File(file.getAbsolutePath() + ".csv")
       val data = (0 until 6).toList.map(_ => new ArrayBuffer[Double]())
       val printWriter = new PrintWriter(outputFile)

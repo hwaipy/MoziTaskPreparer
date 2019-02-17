@@ -7,16 +7,16 @@ import scalafx.application.{JFXApp, Platform}
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.scene.Scene
 import scalafx.scene.control._
-import scalafx.scene.layout.{HBox, VBox}
+import scalafx.scene.layout.{AnchorPane, BorderPane, HBox, VBox}
 import scalafx.util.converter.FormatStringConverter
-import java.text.SimpleDateFormat
+import java.text.{NumberFormat, SimpleDateFormat}
 import java.util.{Date, Properties}
 import java.util.concurrent.Executors
-
 import javafx.event.ActionEvent
-import scalafx.beans.property.DoubleProperty
-import scalafx.geometry.Insets
 
+import collection.JavaConverters._
+import scalafx.beans.property.{BooleanProperty, DoubleProperty, StringProperty}
+import scalafx.geometry.Insets
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import java.nio.file.{Files, Paths}
@@ -39,13 +39,17 @@ object MoziTaskPreparer extends JFXApp {
   val dateTextField = new TextField {
     textFormatter = new TextFormatter(converter)
   }
+  val modeLZXSelected = BooleanProperty(true)
+  val phaseText = StringProperty("0")
 
   stage = new PrimaryStage {
     title = "Mozi Task Preparer"
     scene = new Scene() {
-      root = new VBox(spacing = 5) {
-        children = Seq(datePane, processPane)
+      val rootPane = new VBox(spacing = 5) {
+        children = Seq(datePane, parameterPane, processPane)
       }
+      rootPane.getStylesheets.add(ClassLoader.getSystemClassLoader.getResource("com/hwaipy/mozitaskpreparer/gui/LAF.css").toExternalForm)
+      root = rootPane
     }
   }
 
@@ -98,12 +102,53 @@ object MoziTaskPreparer extends JFXApp {
     taskPrepare
   }
 
+  lazy val parameterPane = new VBox() {
+    children = Seq(new VBox() {
+      val modeAndPhaseHBox = new HBox() {
+        val modeHBox = new HBox(5.0) {
+          padding = Insets(7, 10, 7, 10)
+          val tog = new ToggleGroup()
+          val modeLZX = new RadioButton() {
+            text = "量子星"
+            toggleGroup = tog
+            selected <==> modeLZXSelected
+          }
+          val mode921 = new RadioButton() {
+            text = "921"
+            toggleGroup = tog
+          }
+          modeLZX.prefHeight <== height
+          mode921.prefHeight <== height
+          children = Seq(modeLZX, mode921)
+        }
+        val phaseHBox = new HBox() {
+          padding = Insets(7, 10, 7, 10)
+          val label = new Label("Phase: ")
+          val textField = new TextField() {
+            val format = NumberFormat.getInstance()
+            val converter = new FormatStringConverter[Number](format)
+            textFormatter = new TextFormatter(converter)
+            text <==> phaseText
+            prefWidth = 50
+          }
+          label.prefHeight <== height
+          textField.prefHeight <== height
+          children = Seq(label, textField)
+        }
+        children = Seq(modeHBox, phaseHBox)
+      }
+      children = Seq(modeAndPhaseHBox)
+      id = "ParameterPane"
+      padding = Insets(1, 3, 1, 3)
+    })
+    padding = Insets(1, 10, 1, 10)
+  }
+
   def taskPrepare = {
+    properties.put("Phase Satellite", phaseText.value)
+    properties.put("Mode", modeLZXSelected.value.toString)
     val root = s"${properties.getProperty("DataRoot", "data")}/${dateTextField.text.getValue.replaceAll("-", "")}"
-    val trackingTraceTask = TelescopePreparationTasks.generateTrackingTraceTask(new File(root))
-    val polarizationControlTask = TelescopePreparationTasks.generatePolarizationControlTask(new File(root))
-    val waveplateCalculateTask = TelescopePreparationTasks.generateWaveplateCalculateTask(new File(root))
-    val tasks = new SerialTask(List(trackingTraceTask, polarizationControlTask, waveplateCalculateTask))
+    val tasks = TelescopePreparationTasks.generatePreparationTask(new File(root), properties.keys().asScala.toList.map(_.toString).map(key => (key, properties.getProperty(key))).toMap)
     tasks.progressListener((finished, workload) => Platform.runLater(() => workProgress.value = finished.toDouble / workload))
     tasks.run
   }

@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
 <properties>
-<comment>MoziTaskPreparer</comment>
-<entry key="DataRoot">data</entry>
-<entry key="LogPath">log</entry>
+    <comment>MoziTaskPreparer</comment>
+    <entry key="DataRoot">data</entry>
+    <entry key="LogPath">log</entry>
+    <entry key="TelescopeOriginAzimuth">32.75</entry>
+    <entry key="Phase 1">0.38</entry>
+    <entry key="Phase 2">-1.33</entry>
+    <entry key="Phase 3">0.40</entry>
 </properties>
